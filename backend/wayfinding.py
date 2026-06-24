@@ -88,8 +88,10 @@ class Wayfinder:
         for f1, f2 in zip(sorted(verticals), sorted(verticals)[1:]):
             for n1 in verticals[f1]:
                 for n2 in verticals[f2]:
-                    self.graph.setdefault(n1, []).append((n2, FLOOR_CHANGE_COST))
-                    self.graph.setdefault(n2, []).append((n1, FLOOR_CHANGE_COST))
+                    # Only connect staircases/elevators that have the same label across floors
+                    if self.nodes[n1].get("label", "").lower() == self.nodes[n2].get("label", "").lower():
+                        self.graph.setdefault(n1, []).append((n2, FLOOR_CHANGE_COST))
+                        self.graph.setdefault(n2, []).append((n1, FLOOR_CHANGE_COST))
 
         # Heal: connect isolated rooms to nearest waypoint
         # Pass 1 connects rooms to nearby waypoints. Pass 2 (component merge) is removed so it respects user-drawn paths strictly.
