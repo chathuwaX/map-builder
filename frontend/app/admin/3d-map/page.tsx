@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { ErrorBoundary } from 'react-error-boundary';
+import { ErrorBoundary, FallbackProps } from 'react-error-boundary';
 
 // Dynamically import to avoid SSR issues with SVG animations
 const NavigationMap = dynamic(
@@ -17,12 +17,13 @@ const NavigationMap = dynamic(
   )}
 );
 
-function ErrorFallback({error}: {error: Error}) {
+function ErrorFallback({error}: FallbackProps) {
+  const err = error as Error;
   return (
     <div className="w-full h-full flex flex-col items-center justify-center bg-red-50 p-8 text-red-900 z-50 absolute inset-0">
       <h2 className="text-2xl font-bold mb-4">Something went wrong rendering the Map:</h2>
-      <pre className="text-sm bg-white p-4 rounded shadow overflow-auto max-w-3xl whitespace-pre-wrap">{error.message}</pre>
-      <pre className="text-xs bg-gray-100 p-4 rounded shadow overflow-auto max-w-3xl mt-4 whitespace-pre-wrap">{error.stack}</pre>
+      <pre className="text-sm bg-white p-4 rounded shadow overflow-auto max-w-3xl whitespace-pre-wrap">{err.message}</pre>
+      <pre className="text-xs bg-gray-100 p-4 rounded shadow overflow-auto max-w-3xl mt-4 whitespace-pre-wrap">{err.stack}</pre>
     </div>
   )
 }

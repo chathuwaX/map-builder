@@ -1,3 +1,9 @@
+import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8')
+
 from dotenv import load_dotenv
 from livekit import agents, rtc
 from livekit.agents import Agent, AgentSession, RunContext
@@ -15,7 +21,7 @@ import numpy as np
 from pathlib import Path
 from image_manager import ImageManager
 from image_server import ImageServer
-from face_monitor import FaceMonitor
+# from face_monitor import FaceMonitor
 # from object_detector import ObjectDetector
 from greetings import generate_greeting, generate_group_greeting
 from event_database import EventDatabase, build_event_database
@@ -455,6 +461,9 @@ async def entrypoint(ctx: agents.JobContext):
     # LIGHTWEIGHT init - only start fast services
     _init_lightweight()
     
+    # Connect to the LiveKit room
+    await ctx.connect(auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY)
+
     # Create session immediately (no waiting for ML models)
     session = AgentSession(
         # stt=deepgram.STT(model="nova-2"),

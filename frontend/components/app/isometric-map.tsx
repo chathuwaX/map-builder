@@ -154,7 +154,7 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
   }, [nodes, destination]);
 
   const buildingEntries = useMemo(() => {
-    return Object.entries(buildings || {}).filter(([_, b]: [string, any]) => b.floor === currentFloor);
+    return Object.entries(buildings || {}).filter(([_, b]: [string, any]) => b.floor === currentFloor) as [string, any][];
   }, [buildings, currentFloor]);
 
   const floorNodes = useMemo(() => {
@@ -181,7 +181,7 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
       )}
 
       {/* Floor Switcher */}
-      <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
+      <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
         <div className="text-slate-300 text-xs font-bold text-center uppercase tracking-widest mb-1">Navigation Route</div>
         {floorSequence.map((f, idx) => {
           let badge = '';
@@ -230,26 +230,30 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
                     const cx = c - b.size[0] / 2 + 0.5;
                     const cz = r - b.size[1] / 2 + 0.5;
                     return (
-                      <mesh key={cellId} position={[cx, 0, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-                        <planeGeometry args={[1, 1]} />
+                      <mesh key={cellId} position={[cx, -0.5, cz]} receiveShadow>
+                        <boxGeometry args={[1, 1, 1]} />
                         <meshStandardMaterial color={b.color} />
                       </mesh>
                     );
                   })
                 )}
-                <Text position={[0, 0.02, b.size[1] / 2 + 0.5]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.7} color={b.color}>
-                  {b.name}
+                <Text position={[0, 0.02, b.size[1] / 2 + 0.5]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.7} color={b.color} fontWeight="bold" textAlign="center">
+                  {b.name.replace(' ', '\n')}
                 </Text>
               </group>
             ))}
 
             {/* Room Blocks */}
-            {floorNodes.map((node: any) => {
+            {floorNodes.map((node: any, index: number) => {
               const size = node.size || [1, 1, 1];
               const isDestination = node.label?.toLowerCase() === destination.toLowerCase();
               const theme = getRoomTheme(node.label);
               const boxColor = isDestination ? '#22c55e' : theme.color;
               
+              // Elevate ALL labels and alternate heights to prevent crossing
+              const staggerHeight = 1.0 + (index % 2) * 0.8; 
+              const textY = size[1] / 2 + staggerHeight;
+
               return (
                 <group key={node.id} position={[node.world[0], size[1] / 2, node.world[2]]}>
                   <Box args={size} castShadow>
@@ -259,8 +263,18 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
                       emissiveIntensity={isDestination ? 0.3 : 0}
                     />
                   </Box>
-                  <Text position={[0, size[1] / 2 + 0.4, 0]} fontSize={0.35} color="#ffffff" anchorX="center" anchorY="middle">
-                    {`${theme.icon} ${node.label}`}
+                  
+                  {/* Connecting Line and Arrow for ALL items */}
+                  <group>
+                    <Line points={[[0, size[1] / 2, 0], [0, textY, 0]]} color="#ffffff" opacity={0.4} transparent lineWidth={1.5} />
+                    <mesh position={[0, size[1] / 2 + 0.1, 0]} rotation={[Math.PI, 0, 0]}>
+                      <coneGeometry args={[0.06, 0.2, 8]} />
+                      <meshBasicMaterial color="#ffffff" transparent opacity={0.4} />
+                    </mesh>
+                  </group>
+
+                  <Text position={[0, textY, 0]} fontSize={0.28} color="#ffffff" anchorX="center" anchorY="bottom" fontWeight="bold" textAlign="center" lineHeight={1.1}>
+                    {`${theme.icon} ${node.label.replace(' ', '\n')}`}
                   </Text>
                 </group>
               );
