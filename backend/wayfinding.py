@@ -130,41 +130,8 @@ class Wayfinder:
                     self.graph.setdefault(best_wp, []).append((nid,     dist))
                     healed += 1
 
-            # Pass 2: Merge disconnected components on the same floor
-            components = []
-            visited = set()
-            for nid in ids:
-                if nid in visited: continue
-                comp = []
-                q = [nid]
-                visited.add(nid)
-                while q:
-                    u = q.pop(0)
-                    comp.append(u)
-                    for v, _ in self.graph.get(u, []):
-                        if v in id_set and v not in visited:
-                            visited.add(v)
-                            q.append(v)
-                components.append(comp)
+            # Pass 2 (component merge) has been removed to strictly respect user-drawn paths.
 
-            # Connect each component to the largest component
-            if len(components) > 1:
-                components.sort(key=len, reverse=True)
-                main_comp = components[0]
-                for comp in components[1:]:
-                    best_d, best_pair = float("inf"), None
-                    for u in comp:
-                        for v in main_comp:
-                            d = self._dist(self.nodes[u]["world"], self.nodes[v]["world"])
-                            if d < best_d:
-                                best_d, best_pair = d, (u, v)
-                    if best_pair:
-                        u, v = best_pair
-                        self.graph.setdefault(u, []).append((v, best_d))
-                        self.graph.setdefault(v, []).append((u, best_d))
-                        main_comp.extend(comp)
-                        healed += 1
-            print(f"  🔧 Connected {healed} room(s) to nearest waypoints")
 
     # ── Utilities ──────────────────────────────────────────────────────────
 
