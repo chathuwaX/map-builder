@@ -24,6 +24,7 @@ export function KioskView() {
   // Focused event state — set when a news card is tapped
   const [focusedEvent, setFocusedEvent] = useState<any | null>(null);
   const pendingEventRef = useRef<any | null>(null);
+  const pendingNavigateRef = useRef<string | null>(null);
   const transcriptions = useTranscriptions();
 
   const { audioTrack: agentTrack, state: agentState } = useVoiceAssistant();
@@ -50,15 +51,32 @@ export function KioskView() {
     }
   }, [room]);
 
-  // When connection established AND there's a pending event, send it
-  useEffect(() => {
-    if (isConnected && pendingEventRef.current) {
-      const ev = pendingEventRef.current;
-      pendingEventRef.current = null;
-      // Small delay so agent finishes its "I'm ready" greeting first
-      setTimeout(() => sendEventFocus(ev), 2500);
+  const sendNavigateRequest = useCallback((destination: string) => {
+    if (!room) return;
+    try {
+      const payload = JSON.stringify({ type: 'navigate_request', destination });
+      room.localParticipant.publishData(new TextEncoder().encode(payload), { reliable: true });
+      console.log('📲 Sent navigate_request to agent:', destination);
+    } catch (e) {
+      console.error('Failed to publish navigate request:', e);
     }
-  }, [isConnected, sendEventFocus]);
+  }, [room]);
+
+  // When connection established AND there's a pending event/navigation, send it
+  useEffect(() => {
+    if (isConnected) {
+      if (pendingEventRef.current) {
+        const ev = pendingEventRef.current;
+        pendingEventRef.current = null;
+        setTimeout(() => sendEventFocus(ev), 2500);
+      }
+      if (pendingNavigateRef.current) {
+        const dest = pendingNavigateRef.current;
+        pendingNavigateRef.current = null;
+        setTimeout(() => sendNavigateRequest(dest), 2500);
+      }
+    }
+  }, [isConnected, sendEventFocus, sendNavigateRequest]);
 
   // Handle clicking a news card
   const handleNewsClick = useCallback(async (post: any) => {
@@ -133,16 +151,10 @@ export function KioskView() {
   const handleNavigateToLocation = async (destination: string) => {
     setLocationsModalCategory(null);
     if (!isConnected) {
+      pendingNavigateRef.current = destination;
       await start();
-      setTimeout(() => {
-        if (room) {
-          const payload = JSON.stringify({ type: 'navigate_request', destination });
-          room.localParticipant.publishData(new TextEncoder().encode(payload), { reliable: true });
-        }
-      }, 2500);
-    } else if (room) {
-      const payload = JSON.stringify({ type: 'navigate_request', destination });
-      room.localParticipant.publishData(new TextEncoder().encode(payload), { reliable: true });
+    } else {
+      sendNavigateRequest(destination);
     }
   };
 
