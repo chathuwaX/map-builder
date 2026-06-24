@@ -32,10 +32,10 @@ from eye_engine import ProceduralEyeDisplay, EMOTION_PRESETS
 try:
     from adafruit_rgb_display import st7735
     DISPLAY_AVAILABLE = True
-    print("✅ adafruit-circuitpython-rgb-display available")
+    print("adafruit-circuitpython-rgb-display available")
 except ImportError:
     DISPLAY_AVAILABLE = False
-    print("⚠️ adafruit-circuitpython-rgb-display not found (Headless Mode)")
+    print("Warning: adafruit-circuitpython-rgb-display not found (Headless Mode)")
 
 # --- Configuration ---
 SCREEN_WIDTH = 128

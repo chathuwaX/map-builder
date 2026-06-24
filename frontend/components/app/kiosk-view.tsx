@@ -1,11 +1,12 @@
 'use client';
 
-import { useSessionContext, useSessionMessages, useTranscriptions, useTracks, useTrackVolume, useVoiceAssistant, useRoomContext } from '@livekit/components-react';
+import { useSessionContext, useSessionMessages, useTranscriptions, useTracks, useTrackVolume, useVoiceAssistant, useRoomContext, useChat } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatTranscript } from '@/components/app/chat-transcript';
 import { ScrollArea } from '@/components/livekit/scroll-area/scroll-area';
 import { ThemeToggle } from '@/components/app/theme-toggle';
+import { ImageDisplay } from '@/components/app/image-display';
 import { QRCodeSVG } from 'qrcode.react';
 import { UploadCloud, X } from 'lucide-react';
 
@@ -14,6 +15,8 @@ export function KioskView() {
   const { isConnected, start, end } = session;
   const { messages } = useSessionMessages(session);
   const room = useRoomContext();
+  const { send } = useChat();
+  const [chatInput, setChatInput] = useState('');
 
   // Focused event state — set when a news card is tapped
   const [focusedEvent, setFocusedEvent] = useState<any | null>(null);
@@ -354,6 +357,8 @@ export function KioskView() {
         />
       </div>
 
+      <ImageDisplay />
+
       {/* Main Content Wrapper (must be above background) */}
       <div className="relative z-10 w-full h-full flex flex-col">
 
@@ -562,12 +567,28 @@ export function KioskView() {
                   </div>
                 )}
               </div>
-              <div className="absolute right-4 z-10">
+              <div className="absolute right-4 z-10 flex gap-2">
+                {isConnected && (
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!chatInput.trim()) return;
+                    send(chatInput);
+                    setChatInput('');
+                  }} className="flex items-center">
+                    <input 
+                      type="text" 
+                      value={chatInput} 
+                      onChange={(e) => setChatInput(e.target.value)} 
+                      placeholder="Type your prompt..." 
+                      className="bg-background/80 border border-outline/30 rounded-full px-4 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary w-64 backdrop-blur-md"
+                    />
+                  </form>
+                )}
                 <button 
                   onClick={() => isConnected ? end() : start()}
                   className={`w-[56px] h-[56px] text-white rounded-full flex items-center justify-center shadow-xl hover:scale-105 transition-transform active:scale-95 border-none ${isConnected ? 'bg-error animate-pulse shadow-error/30' : 'bg-primary shadow-primary/30'}`}
                 >
-                  <span className="material-symbols-outlined text-3xl fill-current">{isConnected ? 'mic_off' : 'mic'}</span>
+                  <span className="material-symbols-outlined text-3xl fill-current">{isConnected ? 'close' : 'mic'}</span>
                 </button>
               </div>
             </div>

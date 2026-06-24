@@ -1,4 +1,4 @@
-﻿"""
+"""
 Indoor Navigation Engine - University Faculty Building
 =======================================================
 Multi-floor Dijkstra pathfinding with auto-heal for disconnected rooms.
@@ -92,6 +92,7 @@ class Wayfinder:
                     self.graph.setdefault(n2, []).append((n1, FLOOR_CHANGE_COST))
 
         # Heal: connect isolated rooms to nearest waypoint
+        # Pass 1 connects rooms to nearby waypoints. Pass 2 (component merge) is removed so it respects user-drawn paths strictly.
         self._heal()
 
         rooms = sum(1 for n in self.nodes.values() if n.get("type") != "waypoint")
@@ -127,41 +128,11 @@ class Wayfinder:
                     self.graph.setdefault(best_wp, []).append((nid,     dist))
                     healed += 1
 
-            # Pass 2: BFS component merge
-            def bfs(seed):
-                comp, q = {seed}, deque([seed])
-                while q:
-                    u = q.popleft()
-                    for v, _ in self.graph.get(u, []):
-                        if v in id_set and v not in comp:
-                            comp.add(v); q.append(v)
-                return comp
-
-            remaining, components = set(ids), []
-            while remaining:
-                seed = next(iter(remaining))
-                c = bfs(seed)
-                components.append(c); remaining -= c
-
-            if len(components) <= 1: continue
-            main = max(components, key=len)
-            for orphan in [c for c in components if c is not main]:
-                best_d, best_a, best_b = float("inf"), None, None
-                for a in orphan:
-                    wa = self.nodes[a]["world"]
-                    ba = self.nodes[a].get("building", "")
-                    for b in main:
-                        wb = self.nodes[b]["world"]
-                        d  = (wa[0]-wb[0])**2 + (wa[2]-wb[2])**2
-                        if ba != self.nodes[b].get("building", ""): d += 400
-                        if d < best_d: best_d, best_a, best_b = d, a, b
-                if best_a and best_b:
-                    dist = self._dist(self.nodes[best_a]["world"], self.nodes[best_b]["world"])
-                    self.graph.setdefault(best_a, []).append((best_b, dist))
-                    self.graph.setdefault(best_b, []).append((best_a, dist))
-                    main |= orphan; healed += 1
+            # Pass 2 removed: We do NOT merge disconnected components.
+            # The user must explicitly connect paths using the path editor.
+            
         if healed:
-            print(f"  🔧 Healed {healed} disconnected node(s)")
+            print(f"  🔧 Connected {healed} room(s) to nearest waypoints")
 
     # ── Utilities ──────────────────────────────────────────────────────────
 

@@ -380,21 +380,22 @@ async def _init_heavy_async(agent):
     
     # 3. Start camera and face recognition (slowest)
     if _global_face_monitor is None:
-        print("🎥 Starting camera...")
+        print("🎥 Camera and Face Monitor disabled upon user request...")
         known_faces = await loop.run_in_executor(None, _load_known_faces)
-        _global_face_monitor = FaceMonitor(known_faces)
-        await loop.run_in_executor(None, _global_face_monitor.start)
-        await asyncio.sleep(1)  # Give camera time to warm up
-        print("✅ Camera ready!")
+        # _global_face_monitor = FaceMonitor(known_faces)
+        # await loop.run_in_executor(None, _global_face_monitor.start)
+        # await asyncio.sleep(1)  # Give camera time to warm up
+        # print("✅ Camera ready!")
     
     # Update agent with initialized components
-    agent.face_monitor = _global_face_monitor
+    # agent.face_monitor = _global_face_monitor
     
     # Enable live camera streaming via ImageServer
-    if _global_image_server:
-        _global_image_server.set_face_monitor(_global_face_monitor)
+    # if _global_image_server:
+    #     _global_image_server.set_face_monitor(_global_face_monitor)
     
-    agent.known_faces = _global_face_monitor.known_faces
+    # agent.known_faces = _global_face_monitor.known_faces if _global_face_monitor else {}
+    agent.known_faces = {}
     agent.event_db = _global_event_db
     
     # 4. Initialize Wayfinder (fast — just reads JSON)
@@ -433,7 +434,10 @@ async def entrypoint(ctx: agents.JobContext):
             loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown_wrapper()))
         except (NotImplementedError, ValueError):
             # Fallback for systems where add_signal_handler isn't available
-            signal.signal(sig, _handle_signal)
+            try:
+                signal.signal(sig, _handle_signal)
+            except ValueError:
+                pass # Can't register signals outside main thread on Windows
             
     async def shutdown_wrapper():
         """Clean shutdown transition"""
@@ -453,13 +457,13 @@ async def entrypoint(ctx: agents.JobContext):
     
     # Create session immediately (no waiting for ML models)
     session = AgentSession(
-        stt=deepgram.STT(model="nova-2"),
-        tts=deepgram.TTS(model="aura-luna-en"),
-        vad=silero.VAD.load(
-            min_speech_duration=0.1,
-            min_silence_duration=0.3,  # Aggressive turn-taking
-            prefix_padding_duration=0.2
-        ),
+        # stt=deepgram.STT(model="nova-2"),
+        # tts=deepgram.TTS(model="aura-luna-en"),
+        # vad=silero.VAD.load(
+        #     min_speech_duration=0.1,
+        #     min_silence_duration=0.3,  # Aggressive turn-taking
+        #     prefix_padding_duration=0.2
+        # ),
         llm=openai.LLM(
             base_url="https://openrouter.ai/api/v1",
             api_key=os.getenv("OPENROUTER_API_KEY"),
@@ -748,6 +752,11 @@ async def entrypoint(ctx: agents.JobContext):
         # START SESSION
         print("🚀 Starting LiveKit session...")
         await session.start(room=ctx.room, agent=agent)
+        try:
+            # Prevent RuntimeError when using text-only mode without a TTS engine
+            session.output.set_audio_enabled(False)
+        except AttributeError:
+            pass
         
         # Skip audio wakeup greeting to show frontend skeleton loading instead
         pass
