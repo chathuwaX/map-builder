@@ -154,7 +154,7 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
   }, [nodes, destination]);
 
   const buildingEntries = useMemo(() => {
-    return Object.entries(buildings || {}).filter(([_, b]: [string, any]) => b.floor === currentFloor) as [string, any][];
+    return Object.entries(buildings || {}).filter(([_, b]: [string, any]) => !b.floor || b.floor === currentFloor) as [string, any][];
   }, [buildings, currentFloor]);
 
   const floorNodes = useMemo(() => {
@@ -181,35 +181,37 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
       )}
 
       {/* Floor Switcher */}
-      <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
-        <div className="text-slate-300 text-xs font-bold text-center uppercase tracking-widest mb-1">Navigation Route</div>
-        {floorSequence.map((f, idx) => {
-          let badge = '';
-          if (idx === 0 && floorSequence.length > 1) badge = '🏁 Start';
-          else if (idx === floorSequence.length - 1 && floorSequence.length > 1) badge = '📍 Dest';
-          else if (floorSequence.length > 1) badge = '⬇️ Next';
+      {!isStandalone && (
+        <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
+          <div className="text-slate-300 text-xs font-bold text-center uppercase tracking-widest mb-1">Navigation Route</div>
+          {floorSequence.map((f, idx) => {
+            let badge = '';
+            if (idx === 0 && floorSequence.length > 1) badge = '🏁 Start';
+            else if (idx === floorSequence.length - 1 && floorSequence.length > 1) badge = '📍 Dest';
+            else if (floorSequence.length > 1) badge = '⬇️ Next';
 
-          return (
-            <button
-              key={`${f}-${idx}`}
-              onClick={(e) => { e.stopPropagation(); setCurrentFloor(f as string); }}
-              className={`relative px-5 py-3 rounded-2xl font-bold shadow-2xl border-2 transition-all duration-300 flex flex-col items-center ${
-                currentFloor === f 
-                  ? 'bg-blue-600 border-blue-400 text-white scale-110' 
-                  : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:bg-slate-700 hover:scale-105'
-              }`}
-            >
-              {(f as string).replace('floor_', 'Floor ')}
-              {badge && <span className={`text-[10px] mt-1 opacity-90 ${currentFloor === f ? 'text-blue-100' : 'text-slate-400'}`}>{badge}</span>}
-              
-              {/* Connector line for sequence visual */}
-              {idx < floorSequence.length - 1 && (
-                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-0.5 h-3 bg-slate-600" />
-              )}
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={`${f}-${idx}`}
+                onClick={(e) => { e.stopPropagation(); setCurrentFloor(f as string); }}
+                className={`relative px-5 py-3 rounded-2xl font-bold shadow-2xl border-2 transition-all duration-300 flex flex-col items-center ${
+                  currentFloor === f 
+                    ? 'bg-blue-600 border-blue-400 text-white scale-110' 
+                    : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:bg-slate-700 hover:scale-105'
+                }`}
+              >
+                {(f as string).replace('floor_', 'Floor ')}
+                {badge && <span className={`text-[10px] mt-1 opacity-90 ${currentFloor === f ? 'text-blue-100' : 'text-slate-400'}`}>{badge}</span>}
+                
+                {/* Connector line for sequence visual */}
+                {idx < floorSequence.length - 1 && (
+                  <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-0.5 h-3 bg-slate-600" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* 3D Canvas */}
       <div className="w-full h-full" onClick={(e) => e.stopPropagation()}>
@@ -291,7 +293,12 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
               />
             )}
 
-            <OrbitControls enableZoom={true} enablePan={true} maxPolarAngle={Math.PI / 2 - 0.1} />
+            <OrbitControls 
+              enableZoom={true} 
+              enablePan={true} 
+              maxPolarAngle={Math.PI / 2 - 0.1} 
+              target={isStandalone ? [4, 0, -4] : [0, 0, 0]}
+            />
           </React.Suspense>
         </Canvas>
       </div>

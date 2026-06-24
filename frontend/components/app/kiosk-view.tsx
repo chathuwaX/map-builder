@@ -3,12 +3,15 @@
 import { useSessionContext, useSessionMessages, useTranscriptions, useTracks, useTrackVolume, useVoiceAssistant, useRoomContext, useChat } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { ChatTranscript } from '@/components/app/chat-transcript';
 import { ScrollArea } from '@/components/livekit/scroll-area/scroll-area';
 import { ThemeToggle } from '@/components/app/theme-toggle';
 import { ImageDisplay } from '@/components/app/image-display';
 import { QRCodeSVG } from 'qrcode.react';
 import { UploadCloud, X } from 'lucide-react';
+
+const NavigationMap = dynamic(() => import('@/components/app/isometric-map'), { ssr: false });
 
 export function KioskView() {
   const session = useSessionContext();
@@ -84,6 +87,26 @@ export function KioskView() {
   // Keep other state variables below
   const [time, setTime] = useState('');
   const [dateStr, setDateStr] = useState('');
+  const [homeMapData, setHomeMapData] = useState<{ nodes: any[], buildings: any, edges: any[] } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/map?floor=floor_1')
+      .then(res => res.json())
+      .then(data => {
+        const buildings = data.buildings || {};
+        const edges = data.edges || [];
+        const nodes = (data.nodes || []).map((n: any) => {
+          const b = buildings[n.building] || { position: [0, 0, 0] };
+          return {
+            ...n,
+            floor: 'floor_1',
+            world: [b.position[0] + n.x, 0, b.position[2] + n.z]
+          };
+        });
+        setHomeMapData({ nodes, buildings, edges });
+      })
+      .catch(err => console.error('Failed to load map data', err));
+  }, []);
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [qrUrl, setQrUrl] = useState('');
@@ -424,6 +447,25 @@ export function KioskView() {
             {/* Where to? Card */}
             <div className="bg-surface-container rounded-3xl p-5 shadow-sm flex-1 flex flex-col relative overflow-hidden min-h-0">
               <h2 className="text-[24px] leading-[32px] tracking-[-0.02em] text-primary mb-2 font-bold flex-shrink-0">Where to?</h2>
+              
+              {/* Small Map Visual */}
+              <div className="w-full rounded-2xl overflow-hidden relative bg-black/10 my-2 shadow-inner border border-outline/20 flex-shrink-0" style={{ height: '220px' }}>
+                {homeMapData ? (
+                  <div className="absolute inset-0">
+                    <NavigationMap 
+                      nodes={homeMapData.nodes} 
+                      buildings={homeMapData.buildings} 
+                      edges={homeMapData.edges}
+                      isStandalone={true} 
+                    />
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="material-symbols-outlined animate-spin text-primary opacity-50">refresh</span>
+                  </div>
+                )}
+              </div>
+
               <div className="flex flex-col gap-3 mt-auto w-full">
                 <button className="bg-primary text-on-primary rounded-full h-[50px] w-full text-[17px] flex items-center justify-center gap-3 hover:bg-surface-tint transition-colors active:scale-95 shadow-md font-bold flex-shrink-0">
                   <span className="material-symbols-outlined text-2xl">school</span>
