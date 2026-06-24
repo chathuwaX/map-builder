@@ -15,7 +15,7 @@ const GlowingPath = ({ points }: { points: [number, number, number][] }) => {
   });
   if (points.length < 2) return null;
   return (
-    <Line ref={lineRef} points={points} color="#ef4444" lineWidth={10} dashed dashSize={0.5} gapSize={0.3} />
+    <Line ref={lineRef} points={points} color="#8b0000" lineWidth={20} dashed dashSize={0.5} gapSize={0.3} />
   );
 };
 
