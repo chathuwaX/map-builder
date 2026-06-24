@@ -755,6 +755,52 @@ async def entrypoint(ctx: agents.JobContext):
                     )
                     print(f"📲 Event focus received: {title} — injecting into session")
                     asyncio.ensure_future(session.generate_reply(user_input=intro))
+                
+                elif data.get("type") == "navigate_request":
+                    destination = data.get("destination", "")
+                    print(f"📲 Navigate request received for: {destination}")
+                    
+                    if not agent.wayfinder:
+                        print("⚠️ Wayfinder not initialized")
+                        return
+                        
+                    agent.wayfinder.reload()
+                    result = agent.wayfinder.find_path(destination)
+                    
+                    if not result or "error" in result:
+                        print(f"⚠️ Navigation failed: {result.get('error', 'Unknown error') if result else 'No result'}")
+                        return
+                        
+                    try:
+                        nav_data = {
+                            "type": "navigation",
+                            "destination": result["destination"],
+                            "floor": result.get("floor", "floor_1"),
+                            "path_ids": result.get("path_ids", []),
+                            "path": result["path_coords"],
+                            "directions": result["directions"],
+                            "distance_m": result.get("distance_m", 0),
+                            "time_min": result.get("time_min", 0),
+                            "nodes": [{
+                                "id": n["id"],
+                                "original_id": n.get("original_id", n["id"]),
+                                "label": n["label"],
+                                "type": n.get("type", "room"),
+                                "world": n["world"],
+                                "floor": n.get("floor", "floor_1"),
+                                "building": n.get("building", "building_1"),
+                                "x": n.get("x", 0),
+                                "z": n.get("z", 0),
+                                "size": n.get("size", [1, 1, 1])
+                            } for n in result["nodes"]],
+                            "buildings": result["buildings"]
+                        }
+                        asyncio.ensure_future(ctx.room.local_participant.publish_data(
+                            json.dumps(nav_data).encode()
+                        ))
+                        print(f"   📡 Published navigation data for {destination} to kiosk")
+                    except Exception as e:
+                        print(f"   ⚠️ Failed to publish navigation data: {e}")
             except Exception as e:
                 print(f"⚠️ data_received error: {e}")
 

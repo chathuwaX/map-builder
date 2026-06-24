@@ -108,6 +108,44 @@ export function KioskView() {
       .catch(err => console.error('Failed to load map data', err));
   }, []);
 
+  const [locationsModalCategory, setLocationsModalCategory] = useState<string | null>(null);
+  const [allLocations, setAllLocations] = useState<any[]>([]);
+  const [filteredLocations, setFilteredLocations] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/locations')
+      .then(res => res.json())
+      .then(data => {
+        if (data.locations) {
+          setAllLocations(data.locations);
+        }
+      })
+      .catch(err => console.error('Failed to load locations', err));
+  }, []);
+
+  const handleCategoryClick = (category: string, filterKeyword: string) => {
+    setLocationsModalCategory(category);
+    setFilteredLocations(
+      allLocations.filter(loc => loc.label.toLowerCase().includes(filterKeyword.toLowerCase()))
+    );
+  };
+
+  const handleNavigateToLocation = async (destination: string) => {
+    setLocationsModalCategory(null);
+    if (!isConnected) {
+      await start();
+      setTimeout(() => {
+        if (room) {
+          const payload = JSON.stringify({ type: 'navigate_request', destination });
+          room.localParticipant.publishData(new TextEncoder().encode(payload), { reliable: true });
+        }
+      }, 2500);
+    } else if (room) {
+      const payload = JSON.stringify({ type: 'navigate_request', destination });
+      room.localParticipant.publishData(new TextEncoder().encode(payload), { reliable: true });
+    }
+  };
+
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [qrUrl, setQrUrl] = useState('');
 
@@ -467,17 +505,17 @@ export function KioskView() {
               </div>
 
               <div className="flex flex-col gap-3 mt-auto w-full">
-                <button className="bg-primary text-on-primary rounded-full h-[50px] w-full text-[17px] flex items-center justify-center gap-3 hover:bg-surface-tint transition-colors active:scale-95 shadow-md font-bold flex-shrink-0">
+                <button onClick={() => handleCategoryClick('Lecture Halls', 'lecture hall')} className="bg-primary text-on-primary rounded-full h-[50px] w-full text-[17px] flex items-center justify-center gap-3 hover:bg-surface-tint transition-colors active:scale-95 shadow-md font-bold flex-shrink-0">
                   <span className="material-symbols-outlined text-2xl">school</span>
-                  Dean's Office
+                  Lecture Halls
                 </button>
-                <button className="bg-surface-variant text-on-surface-variant rounded-full h-[50px] w-full text-[17px] flex items-center justify-center gap-3 hover:bg-surface-container-highest transition-colors active:scale-95 shadow-sm border border-outline-variant font-bold flex-shrink-0">
-                  <span className="material-symbols-outlined text-2xl">computer</span>
-                  Computer Lab 03
+                <button onClick={() => handleCategoryClick('Laboratory', 'laboratory')} className="bg-surface-variant text-on-surface-variant rounded-full h-[50px] w-full text-[17px] flex items-center justify-center gap-3 hover:bg-surface-container-highest transition-colors active:scale-95 shadow-sm border border-outline-variant font-bold flex-shrink-0">
+                  <span className="material-symbols-outlined text-2xl">science</span>
+                  Laboratory
                 </button>
-                <button className="bg-surface-variant text-on-surface-variant rounded-full h-[50px] w-full text-[17px] flex items-center justify-center gap-3 hover:bg-surface-container-highest transition-colors active:scale-95 shadow-sm border border-outline-variant font-bold flex-shrink-0">
+                <button onClick={() => handleCategoryClick('Auditoriums', 'auditorium')} className="bg-surface-variant text-on-surface-variant rounded-full h-[50px] w-full text-[17px] flex items-center justify-center gap-3 hover:bg-surface-container-highest transition-colors active:scale-95 shadow-sm border border-outline-variant font-bold flex-shrink-0">
                   <span className="material-symbols-outlined text-2xl">apartment</span>
-                  Lecture Hall
+                  Auditoriums
                 </button>
               </div>
             </div>
@@ -782,6 +820,48 @@ export function KioskView() {
                 <QRCodeSVG value={qrUrl} size={200} />
               </div>
               <p className="text-sm font-medium opacity-60">or visit<br/><span className="text-primary">{qrUrl}</span></p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Location Selection Modal */}
+      {locationsModalCategory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface text-on-surface p-6 rounded-3xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col relative animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setLocationsModalCategory(null)}
+              className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface bg-surface-variant/50 hover:bg-surface-variant p-2 rounded-full transition-colors z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <h2 className="text-2xl font-bold mb-6 text-primary border-b border-outline-variant/30 pb-4">
+              {locationsModalCategory}
+            </h2>
+            
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              {filteredLocations.length > 0 ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {filteredLocations.map((loc) => (
+                    <button 
+                      key={`${loc.floor}_${loc.id}`}
+                      onClick={() => handleNavigateToLocation(loc.label)}
+                      className="flex flex-col text-left p-4 rounded-2xl border border-outline-variant/40 bg-surface-container-lowest hover:bg-primary-container hover:text-on-primary-container transition-colors duration-200 shadow-sm"
+                    >
+                      <span className="font-bold text-lg leading-tight mb-1">{loc.label}</span>
+                      <span className="text-sm opacity-70 font-medium tracking-wide">
+                        {loc.floor.replace('floor_', 'Floor ')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 opacity-50">
+                  <span className="material-symbols-outlined text-4xl mb-3">search_off</span>
+                  <p className="text-lg">No {locationsModalCategory.toLowerCase()} found.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
