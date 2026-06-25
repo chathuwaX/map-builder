@@ -404,18 +404,8 @@ async def _init_heavy_async(agent):
     agent.known_faces = {}
     agent.event_db = _global_event_db
     
-    # 4. Initialize Wayfinder (fast — just reads JSON)
-    try:
-        agent.wayfinder = Wayfinder()
-        print("✅ Wayfinder navigation ready")
-    except Exception as e:
-        print(f"⚠️ Could not initialize Wayfinder: {e}")
-        agent.wayfinder = None
-    
     _is_ready = True
     print("🎉 All components initialized!")
-
-
 def _handle_signal(sig, frame):
     """Handle termination signals for graceful shutdown"""
     print(f"\n🛑 Received signal {sig}, shutting down...")
@@ -457,22 +447,22 @@ async def entrypoint(ctx: agents.JobContext):
         await asyncio.sleep(0.5)
         # Note: We don't exit here, we let the runner clean up the rest
 
-    
+    # Connect to the LiveKit room immediately to prevent job timeout
+    print("🔌 Connecting to room...")
+    await ctx.connect(auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY)
+
     # LIGHTWEIGHT init - only start fast services
     _init_lightweight()
-    
-    # Connect to the LiveKit room
-    await ctx.connect(auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY)
 
     # Create session immediately (no waiting for ML models)
     session = AgentSession(
-        # stt=deepgram.STT(model="nova-2"),
-        # tts=deepgram.TTS(model="aura-luna-en"),
-        # vad=silero.VAD.load(
-        #     min_speech_duration=0.1,
-        #     min_silence_duration=0.3,  # Aggressive turn-taking
-        #     prefix_padding_duration=0.2
-        # ),
+        stt=deepgram.STT(model="nova-2"),
+        tts=deepgram.TTS(model="aura-luna-en"),
+        vad=silero.VAD.load(
+            min_speech_duration=0.1,
+            min_silence_duration=0.3,  # Aggressive turn-taking
+            prefix_padding_duration=0.2
+        ),
         llm=openai.LLM(
             base_url="https://openrouter.ai/api/v1",
             api_key=os.getenv("OPENROUTER_API_KEY"),
@@ -484,6 +474,16 @@ async def entrypoint(ctx: agents.JobContext):
     # Create agent without heavy components (will be set later)
     agent = CampusGreetingAgent(_global_image_server, None)  # event_db set later
     agent.room = ctx.room
+    
+    # Initialize Wayfinder instantly so navigation requests don't fail early
+    from wayfinding import Wayfinder
+    try:
+        agent.wayfinder = Wayfinder()
+        print("✅ Wayfinder navigation ready")
+    except Exception as e:
+        print(f"⚠️ Could not initialize Wayfinder: {e}")
+        agent.wayfinder = None
+        
     agent.face_monitor = None  # Will be set after background init
     agent.is_speaking = False  # Track speaking state for emotion logic
     

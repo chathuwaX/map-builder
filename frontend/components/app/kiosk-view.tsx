@@ -517,11 +517,11 @@ export function KioskView() {
               </div>
 
               <div className="flex flex-col gap-3 mt-auto w-full">
-                <button onClick={() => handleCategoryClick('Lecture Halls', 'lecture hall')} className="bg-primary text-on-primary rounded-full h-[50px] w-full text-[17px] flex items-center justify-center gap-3 hover:bg-surface-tint transition-colors active:scale-95 shadow-md font-bold flex-shrink-0">
+                <button onClick={() => handleCategoryClick('Lecture Halls', 'lecture')} className="bg-primary text-on-primary rounded-full h-[50px] w-full text-[17px] flex items-center justify-center gap-3 hover:bg-surface-tint transition-colors active:scale-95 shadow-md font-bold flex-shrink-0">
                   <span className="material-symbols-outlined text-2xl">school</span>
                   Lecture Halls
                 </button>
-                <button onClick={() => handleCategoryClick('Laboratory', 'laboratory')} className="bg-surface-variant text-on-surface-variant rounded-full h-[50px] w-full text-[17px] flex items-center justify-center gap-3 hover:bg-surface-container-highest transition-colors active:scale-95 shadow-sm border border-outline-variant font-bold flex-shrink-0">
+                <button onClick={() => handleCategoryClick('Laboratory', 'lab')} className="bg-surface-variant text-on-surface-variant rounded-full h-[50px] w-full text-[17px] flex items-center justify-center gap-3 hover:bg-surface-container-highest transition-colors active:scale-95 shadow-sm border border-outline-variant font-bold flex-shrink-0">
                   <span className="material-symbols-outlined text-2xl">science</span>
                   Laboratory
                 </button>
