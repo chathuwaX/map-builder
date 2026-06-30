@@ -435,6 +435,9 @@ export function KioskView() {
       {/* Main Content Wrapper (must be above background) */}
       <div className="relative z-10 w-full h-full flex flex-col">
 
+      {/* Premium Anti-Gravity Progress Shimmer Line */}
+      <div className="w-full h-1 antigravity-progress z-50 shadow-[0_0_12px_rgba(239,68,68,0.6)] flex-shrink-0"></div>
+
       <style>{`
         @keyframes ambientBlob1 {
           0%, 100% { transform: translate(0px, 0px) scale(1); }
@@ -443,6 +446,22 @@ export function KioskView() {
         @keyframes ambientBlob2 {
           0%, 100% { transform: translate(0px, 0px) scale(1); }
           50% { transform: translate(-30px, -15px) scale(1.1); }
+        }
+        @keyframes antigravity-shimmer {
+          0% { background-position: 200% 100%; }
+          100% { background-position: -100% -50%; }
+        }
+        .antigravity-progress {
+          background-image: linear-gradient(
+            110deg,
+            #dc2626 0%,
+            #ef4444 40%,
+            #ffffff 50%,
+            #ef4444 60%,
+            #dc2626 100%
+          );
+          background-size: 250% 150%;
+          animation: antigravity-shimmer 2.5s cubic-bezier(0.25, 1, 0.5, 1) infinite reverse;
         }
       `}</style>
 

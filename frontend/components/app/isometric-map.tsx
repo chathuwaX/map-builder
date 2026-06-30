@@ -5,17 +5,59 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Line, Box, Grid, Text } from '@react-three/drei';
 import * as THREE from 'three';
 
-// Animated glowing dashed path that flows toward the destination
+// Animated glowing path that flows toward the destination
 const GlowingPath = ({ points }: { points: [number, number, number][] }) => {
   const lineRef = useRef<any>(null);
+
+  // Calculate approximate path length to scale the shimmer appropriately
+  const pathLength = useMemo(() => {
+    let len = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      const dx = points[i + 1][0] - points[i][0];
+      const dy = points[i + 1][1] - points[i][1];
+      const dz = points[i + 1][2] - points[i][2];
+      len += Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+    return len;
+  }, [points]);
+
   useFrame((_, delta) => {
     if (lineRef.current?.material) {
-      lineRef.current.material.dashOffset -= delta * 2;
+      // Fast sweeping motion toward the destination
+      lineRef.current.material.dashOffset -= delta * 12;
     }
   });
+
   if (points.length < 2) return null;
+
+  // The highlight (shimmer) length
+  const dashSize = Math.max(1, pathLength * 0.05); // Shimmer length
+  // The gap is large so the shimmer looks like a discrete moving pulse
+  const gapSize = Math.max(12, pathLength * 0.85);
+
   return (
-    <Line ref={lineRef} points={points} color="#8b0000" lineWidth={20} dashed dashSize={0.5} gapSize={0.3} />
+    <group>
+      {/* Base track: continuous solid green line (progress bar base) */}
+      <Line
+        points={points}
+        color="#a20000"
+        lineWidth={18}
+        transparent
+        opacity={0.8}
+      />
+      {/* Pulse track: bright sweeping shimmer (leading edge glow) */}
+      <Line
+        ref={lineRef}
+        points={points}
+        color="#fdfdfd"
+        lineWidth={18}
+        transparent
+        opacity={0.8}
+        dashed
+        dashSize={dashSize}
+        gapSize={gapSize}
+      />
+    </group>
   );
 };
 
@@ -119,7 +161,7 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
   useEffect(() => {
     // Animate in
     setTimeout(() => setVisible(true), 50);
-    
+
     if (!isStandalone) {
       // Auto-dismiss after 20 seconds
       const timer = setTimeout(() => {
@@ -162,7 +204,7 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
   }, [nodes, currentFloor]);
 
   return (
-    <div 
+    <div
       className={isStandalone
         ? `w-full h-full bg-[#0F172A] flex flex-col items-center justify-center transition-all duration-500 ${visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`
         : `fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center transition-all duration-500 ${visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`
@@ -194,15 +236,14 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
               <button
                 key={`${f}-${idx}`}
                 onClick={(e) => { e.stopPropagation(); setCurrentFloor(f as string); }}
-                className={`relative px-5 py-3 rounded-2xl font-bold shadow-2xl border-2 transition-all duration-300 flex flex-col items-center ${
-                  currentFloor === f 
-                    ? 'bg-blue-600 border-blue-400 text-white scale-110' 
-                    : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:bg-slate-700 hover:scale-105'
-                }`}
+                className={`relative px-5 py-3 rounded-2xl font-bold shadow-2xl border-2 transition-all duration-300 flex flex-col items-center ${currentFloor === f
+                  ? 'bg-blue-600 border-blue-400 text-white scale-110'
+                  : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:bg-slate-700 hover:scale-105'
+                  }`}
               >
                 {(f as string).replace('floor_', 'Floor ')}
                 {badge && <span className={`text-[10px] mt-1 opacity-90 ${currentFloor === f ? 'text-blue-100' : 'text-slate-400'}`}>{badge}</span>}
-                
+
                 {/* Connector line for sequence visual */}
                 {idx < floorSequence.length - 1 && (
                   <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-0.5 h-3 bg-slate-600" />
@@ -251,9 +292,9 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
               const isDestination = node.label?.toLowerCase() === destination.toLowerCase();
               const theme = getRoomTheme(node.label);
               const boxColor = isDestination ? '#22c55e' : theme.color;
-              
+
               // Elevate ALL labels and alternate heights to prevent crossing
-              const staggerHeight = 1.0 + (index % 2) * 0.8; 
+              const staggerHeight = 1.0 + (index % 2) * 0.8;
               const textY = size[1] / 2 + staggerHeight;
 
               return (
@@ -265,7 +306,7 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
                       emissiveIntensity={isDestination ? 0.3 : 0}
                     />
                   </Box>
-                  
+
                   {/* Connecting Line and Arrow for ALL items */}
                   <group>
                     <Line points={[[0, size[1] / 2, 0], [0, textY, 0]]} color="#ffffff" opacity={0.4} transparent lineWidth={1.5} />
@@ -293,10 +334,10 @@ export default function NavigationMap({ path = [], path_ids = [], nodes = [], bu
               />
             )}
 
-            <OrbitControls 
-              enableZoom={true} 
-              enablePan={true} 
-              maxPolarAngle={Math.PI / 2 - 0.1} 
+            <OrbitControls
+              enableZoom={true}
+              enablePan={true}
+              maxPolarAngle={Math.PI / 2 - 0.1}
               target={isStandalone ? [4, 0, -4] : [0, 0, 0]}
             />
           </React.Suspense>
