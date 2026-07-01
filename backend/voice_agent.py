@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from livekit import agents, rtc
 from livekit.agents import Agent, AgentSession, RunContext
 from livekit.agents.llm import function_tool
-from livekit.plugins import openai, deepgram
+from livekit.plugins import openai, deepgram, silero
 import os
 import pickle
 import json
@@ -458,6 +458,11 @@ async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
         stt=deepgram.STT(model="nova-2"),
         tts=deepgram.TTS(model="aura-luna-en"),
+        vad=silero.VAD.load(
+            min_speech_duration=0.1,
+            min_silence_duration=0.3,  # Aggressive turn-taking
+            prefix_padding_duration=0.2
+        ),
         llm=openai.LLM(
             base_url="https://openrouter.ai/api/v1",
             api_key=os.getenv("OPENROUTER_API_KEY"),

@@ -215,7 +215,7 @@ class Wayfinder:
                 p3 = self.nodes[path_ids[i+1]]["world"]
                 ang = self._angle(p1, p2, p3)
                 if abs(ang) > 38:
-                    steps.append("turn right" if ang < 0 else "turn left"); cooldown = 2
+                    steps.append("turn left" if ang < 0 else "turn right"); cooldown = 2
             if cooldown > 0: cooldown -= 1
         steps.append(f"arrive at {dest_label}")
         return ", then ".join(steps).capitalize() + "."

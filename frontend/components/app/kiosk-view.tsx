@@ -44,7 +44,6 @@ export function KioskView() {
 
   // Navigation state
   const [navData, setNavData] = useState<any | null>(null);
-  const [isMapExpanded, setIsMapExpanded] = useState(false);
   const isNavigating = navData !== null;
   const pendingEventRef = useRef<any | null>(null);
   const pendingNavigateRef = useRef<string | null>(null);
@@ -188,36 +187,20 @@ export function KioskView() {
   } | null>(null);
 
   useEffect(() => {
-    const floors = ["floor_1", "floor_2", "floor_3", "floor_4"];
-    Promise.all(
-      floors.map((floor) =>
-        fetch(`/api/map?floor=${floor}`)
-          .then((res) => res.json())
-          .then((data) => ({ floor, data }))
-      )
-    )
-      .then((results) => {
-        let allNodes: any[] = [];
-        let allEdges: any[] = [];
-        let allBuildings: any = {};
-
-        results.forEach(({ floor, data }) => {
-          const buildings = data.buildings || {};
-          allBuildings = { ...allBuildings, ...buildings };
-          const edges = data.edges || [];
-          allEdges = [...allEdges, ...edges];
-          const nodes = (data.nodes || []).map((n: any) => {
-            const b = buildings[n.building] || { position: [0, 0, 0] };
-            return {
-              ...n,
-              floor,
-              world: [b.position[0] + n.x, 0, b.position[2] + n.z],
-            };
-          });
-          allNodes = [...allNodes, ...nodes];
+    fetch("/api/map?floor=floor_1")
+      .then((res) => res.json())
+      .then((data) => {
+        const buildings = data.buildings || {};
+        const edges = data.edges || [];
+        const nodes = (data.nodes || []).map((n: any) => {
+          const b = buildings[n.building] || { position: [0, 0, 0] };
+          return {
+            ...n,
+            floor: "floor_1",
+            world: [b.position[0] + n.x, 0, b.position[2] + n.z],
+          };
         });
-
-        setHomeMapData({ nodes: allNodes, buildings: allBuildings, edges: allEdges });
+        setHomeMapData({ nodes, buildings, edges });
       })
       .catch((err) => console.error("Failed to load map data", err));
   }, []);
@@ -671,8 +654,7 @@ export function KioskView() {
                       initial={{ opacity: 0, height: 0, marginBottom: 0 }}
                       animate={{ opacity: 1, height: 220, marginBottom: 8 }}
                       exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                      className="w-full rounded-2xl overflow-hidden relative bg-black/10 mt-2 shadow-inner border border-outline/20 flex-shrink-0 cursor-pointer transition-transform hover:scale-[1.02]"
-                      onClick={() => setIsMapExpanded(true)}
+                      className="w-full rounded-2xl overflow-hidden relative bg-black/10 mt-2 shadow-inner border border-outline/20 flex-shrink-0"
                     >
                       {homeMapData ? (
                         <div className="absolute inset-0">
@@ -682,7 +664,6 @@ export function KioskView() {
                             edges={homeMapData.edges}
                             isStandalone={true}
                           />
-                          <div className="absolute inset-0 z-10" />
                         </div>
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -927,7 +908,7 @@ export function KioskView() {
 
             {/* Navigation Map Overlay (Scoped to Left and Middle Columns) */}
             <AnimatePresence>
-              {(navData || (isMapExpanded && homeMapData)) && (
+              {navData && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -946,21 +927,13 @@ export function KioskView() {
                     }
                   >
                     <NavigationMap
-                      path={navData?.path || []}
-                      path_ids={navData?.path_ids || []}
-                      nodes={navData?.nodes || homeMapData?.nodes || []}
-                      buildings={navData?.buildings || homeMapData?.buildings || {}}
-                      destination={navData?.destination || "Campus Map"}
-                      directions={navData?.directions}
-                      onClose={() => {
-                        setNavData(null);
-                        setIsMapExpanded(false);
-                      }}
-                      onNodeClick={(node) => {
-                        if (node.label) {
-                          handleNavigateToLocation(node.label);
-                        }
-                      }}
+                      path={navData.path}
+                      path_ids={navData.path_ids}
+                      nodes={navData.nodes}
+                      buildings={navData.buildings}
+                      destination={navData.destination}
+                      directions={navData.directions}
+                      onClose={() => setNavData(null)}
                     />
                   </Suspense>
                 </motion.div>
@@ -970,10 +943,10 @@ export function KioskView() {
             {/* Right Column: Faculty News / Focused Poster — expands when poster is focused */}
             <div
               className="h-full min-h-0 flex-shrink-0 overflow-hidden transition-all duration-500 ease-in-out"
-              style={{ width: focusedEvent || isNavigating || isMapExpanded ? "26%" : "25%" }}
+              style={{ width: focusedEvent || isNavigating ? "26%" : "25%" }}
             >
               <AnimatePresence mode="wait">
-                {isNavigating || isMapExpanded ? (
+                {isNavigating ? (
                   <motion.div
                     key="navigation-chat"
                     initial={{ opacity: 0, x: 20 }}
@@ -1001,7 +974,7 @@ export function KioskView() {
                         isLoading={false}
                         className="space-y-4 pb-4"
                       />
-                      {navData?.directions && (
+                      {navData.directions && (
                         <div className="mt-2 mb-4 p-4 bg-primary/10 rounded-2xl border border-primary/20 animate-in fade-in slide-in-from-bottom-2 duration-500">
                           <h4 className="font-bold text-primary mb-1 flex items-center gap-1 text-sm">
                             <span className="material-symbols-outlined text-[16px]">
@@ -1015,49 +988,6 @@ export function KioskView() {
                         </div>
                       )}
                     </ScrollArea>
-                    <div className="p-4 border-t border-outline/10 flex flex-col gap-2 bg-surface">
-                      <div className="flex items-center gap-2">
-                        {isConnected ? (
-                          <>
-                            <form
-                              onSubmit={(e) => {
-                                e.preventDefault();
-                                if (!chatInput.trim()) return;
-                                send(chatInput);
-                                setChatInput("");
-                              }}
-                              className="flex-1 flex items-center"
-                            >
-                              <input
-                                type="text"
-                                value={chatInput}
-                                onChange={(e) => setChatInput(e.target.value)}
-                                placeholder="Type a message..."
-                                className="w-full bg-background/80 border border-outline/30 rounded-full px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary backdrop-blur-md"
-                              />
-                            </form>
-                            <button
-                              onClick={() => end()}
-                              className="w-[44px] h-[44px] flex-shrink-0 text-white rounded-full flex items-center justify-center shadow-md hover:scale-105 transition-transform active:scale-95 border-none bg-error animate-pulse shadow-error/30"
-                            >
-                              <span className="material-symbols-outlined text-2xl fill-current">
-                                close
-                              </span>
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            onClick={() => start()}
-                            className="w-full h-[44px] text-white rounded-full flex items-center justify-center gap-2 shadow-md hover:scale-[1.02] transition-transform active:scale-95 border-none bg-primary shadow-primary/30 font-bold"
-                          >
-                            <span className="material-symbols-outlined text-2xl fill-current">
-                              mic
-                            </span>
-                            Talk to Assistant
-                          </button>
-                        )}
-                      </div>
-                    </div>
                   </motion.div>
                 ) : (
                   <motion.div
