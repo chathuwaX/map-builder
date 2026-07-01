@@ -124,6 +124,42 @@ const DestinationMarker = ({
   );
 };
 
+// Safe image icon component that won't crash if the image is missing
+const ImageIcon = ({
+  url,
+  size,
+  position = [0, 0, 0],
+  scale = 1,
+}: {
+  url: string;
+  size: number[];
+  position?: [number, number, number];
+  scale?: number;
+}) => {
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    new THREE.TextureLoader().load(
+      url,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        setTexture(tex);
+      },
+      undefined,
+      (err) => console.error("Failed to load texture", url),
+    );
+  }, [url]);
+
+  if (!texture) return null;
+
+  return (
+    <mesh position={position}>
+      <planeGeometry args={[1.04 * scale, 1.04 * scale]} />
+      <meshBasicMaterial map={texture} transparent />
+    </mesh>
+  );
+};
+
 interface NavigationMapProps {
   path: number[][]; // Array of [x, y, z] world coordinates
   path_ids?: string[]; // Array of node IDs in the path
@@ -133,17 +169,22 @@ interface NavigationMapProps {
   edges?: any[]; // Edges to render all connections
   destination: string; // Destination label
   onClose?: () => void; // Close callback
+  onNodeClick?: (node: any) => void; // Click callback for a node
   isStandalone?: boolean; // Standalone mode for 3d-map page
 }
 
 const getRoomTheme = (label: string = "") => {
   const lower = label.toLowerCase();
-  if (lower.includes("lecture")) return { color: "#3b82f6", icon: "👨‍🏫" };
-  if (lower.includes("lab")) return { color: "#8b5cf6", icon: "🔬" };
+  if (lower.includes("lecture"))
+    return { color: "#3b82f6", icon: "/lecture-icon.png", showName: true };
+  if (lower.includes("lab"))
+    return { color: "#8b5cf6", icon: "🔬", showName: true };
   if (lower.includes("washroom")) {
-    if (lower.includes("female")) return { color: "#1e3a8a", icon: "🚺" };
-    if (lower.includes("male")) return { color: "#3b82f6", icon: "🚹" };
-    return { color: "#0ea5e9", icon: "🚻" };
+    if (lower.includes("female"))
+      return { color: "#1e3a8a", icon: "🚺", showName: false };
+    if (lower.includes("male"))
+      return { color: "#3b82f6", icon: "🚹", showName: false };
+    return { color: "#0ea5e9", icon: "🚻", showName: false };
   }
   if (
     lower.includes("office") ||
@@ -151,12 +192,14 @@ const getRoomTheme = (label: string = "") => {
     lower.includes("department") ||
     lower.includes("division")
   )
-    return { color: "#f59e0b", icon: "💼" };
-  if (lower.includes("staircase")) return { color: "#64748b", icon: "🪜" };
-  if (lower.includes("exit")) return { color: "#ef4444", icon: "🚪" };
+    return { color: "#f59e0b", icon: "💼", showName: false };
+  if (lower.includes("staircase"))
+    return { color: "#64748b", icon: "🪜", showName: false };
+  if (lower.includes("exit"))
+    return { color: "#ef4444", icon: "🚪", showName: false };
   if (lower.includes("desk") || lower.includes("evaluator"))
-    return { color: "#10b981", icon: "💁" };
-  return { color: "#475569", icon: "📍" }; // default
+    return { color: "#10b981", icon: "💁", showName: false };
+  return { color: "#475569", icon: "📍", showName: false }; // default
 };
 
 export default function NavigationMap({
@@ -167,16 +210,28 @@ export default function NavigationMap({
   edges = [],
   destination = "Destination",
   onClose,
+  onNodeClick,
   isStandalone = false,
 }: Partial<NavigationMapProps>) {
   const [visible, setVisible] = useState(false);
   const [currentFloor, setCurrentFloor] = useState<string>("");
 
-  const availableFloors = useMemo(() => {
+  const touchStartY = useRef<number | null>(null);
+  const wheelAccumulator = useRef(0);
+  const lastSwitchTime = useRef(0);
+
+  const ascendingFloors = useMemo(() => {
     return Array.from(
       new Set(nodes.map((n) => n.floor).filter(Boolean)),
     ).sort();
   }, [nodes]);
+
+  const availableFloors = useMemo(() => {
+    return [...ascendingFloors].reverse();
+  }, [ascendingFloors]);
+
+  const currentFloorIndex = ascendingFloors.indexOf(currentFloor);
+  const visibleFloors = isStandalone ? [currentFloor] : ascendingFloors.slice(0, Math.max(1, currentFloorIndex + 1));
 
   const floorSequence = useMemo(() => {
     if (!path_ids || path_ids.length === 0) return availableFloors;
@@ -192,9 +247,13 @@ export default function NavigationMap({
 
   useEffect(() => {
     if (floorSequence.length > 0 && !currentFloor) {
-      setCurrentFloor(floorSequence[0] as string);
+      if (!path_ids || path_ids.length === 0) {
+        setCurrentFloor(floorSequence.includes("floor_1") ? "floor_1" : floorSequence[floorSequence.length - 1] as string);
+      } else {
+        setCurrentFloor(floorSequence[0] as string);
+      }
     }
-  }, [floorSequence, currentFloor]);
+  }, [floorSequence, currentFloor, path_ids]);
 
   useEffect(() => {
     // Animate in
@@ -216,18 +275,76 @@ export default function NavigationMap({
     setTimeout(() => onClose?.(), 400);
   };
 
+  const handleNextFloor = () => {
+    const now = Date.now();
+    if (now - lastSwitchTime.current < 500) return;
+    const idx = availableFloors.indexOf(currentFloor);
+    if (idx > 0) { // Higher floor (lower index since array is reversed)
+      setCurrentFloor(availableFloors[idx - 1] as string);
+      lastSwitchTime.current = now;
+    }
+  };
+
+  const handlePrevFloor = () => {
+    const now = Date.now();
+    if (now - lastSwitchTime.current < 500) return;
+    const idx = availableFloors.indexOf(currentFloor);
+    if (idx < availableFloors.length - 1) { // Lower floor (higher index)
+      setCurrentFloor(availableFloors[idx + 1] as string);
+      lastSwitchTime.current = now;
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (isStandalone) return;
+    wheelAccumulator.current += e.deltaY;
+    if (wheelAccumulator.current > 100) {
+      handlePrevFloor();
+      wheelAccumulator.current = 0;
+    } else if (wheelAccumulator.current < -100) {
+      handleNextFloor();
+      wheelAccumulator.current = 0;
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isStandalone) return;
+    if (e.touches.length === 1) {
+      touchStartY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isStandalone || touchStartY.current === null || e.touches.length !== 1) return;
+    const deltaY = e.touches[0].clientY - touchStartY.current;
+    if (deltaY > 80) { // Swiped down -> lower floor
+      handlePrevFloor();
+      touchStartY.current = e.touches[0].clientY;
+    } else if (deltaY < -80) { // Swiped up -> higher floor
+      handleNextFloor();
+      touchStartY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartY.current = null;
+  };
+
   const pathPoints = useMemo(() => {
     if (!path || !path_ids) return [];
     const points: [number, number, number][] = [];
     for (let i = 0; i < path.length; i++) {
       const pId = path_ids[i];
       const node = nodes.find((n) => n.id === pId);
-      if (node && node.floor === currentFloor) {
-        points.push([path[i][0], 0.3, path[i][2]]);
+      if (node) {
+        const floorIdx = ascendingFloors.indexOf(node.floor);
+        if (floorIdx !== -1 && floorIdx <= currentFloorIndex) {
+          points.push([path[i][0], 0.3 + (isStandalone ? 0 : floorIdx * 15), path[i][2]]);
+        }
       }
     }
     return points;
-  }, [path, path_ids, nodes, currentFloor]);
+  }, [path, path_ids, nodes, ascendingFloors, currentFloorIndex, isStandalone]);
 
   const destNode = useMemo(() => {
     return nodes.find(
@@ -257,6 +374,10 @@ export default function NavigationMap({
           : `absolute inset-0 z-50 bg-black/80 backdrop-blur-md rounded-3xl overflow-hidden shadow-2xl flex flex-col items-center justify-center transition-all duration-500 ${visible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`
       }
       onClick={isStandalone ? undefined : handleClose}
+      onWheel={handleWheel}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Header */}
       {!isStandalone && (
@@ -267,11 +388,11 @@ export default function NavigationMap({
           <div className="bg-gray-900/90 border border-gray-700 rounded-2xl px-8 py-4 flex items-center gap-4 shadow-2xl">
             <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
             <span className="text-white text-lg font-bold">
-              Navigating to: {destination}
+              {path && path.length > 0 ? `Navigating to: ${destination}` : destination}
             </span>
             <button
               onClick={handleClose}
-              className="ml-4 text-gray-400 hover:text-white text-2xl font-bold"
+              className="ml-4 p-2 -mr-2 text-gray-400 hover:text-white text-2xl font-bold rounded-full active:bg-white/10 transition-colors"
             >
               &times;
             </button>
@@ -283,7 +404,7 @@ export default function NavigationMap({
       {!isStandalone && (
         <div className="absolute left-6 top-[75%] -translate-y-1/2 flex flex-col gap-2 z-10 scale-90 origin-left">
           <div className="text-slate-300 text-xs font-bold text-center uppercase tracking-widest mb-1">
-            Navigation Route
+            {(!path_ids || path_ids.length === 0) ? "Floors" : "Navigation Route"}
           </div>
           {floorSequence.map((f, idx) => {
             let badge = "";
@@ -348,83 +469,113 @@ export default function NavigationMap({
               distance={15}
             />
 
-            {/* Building Grids */}
-            {buildingEntries.map(([bId, b]) => (
-              <group key={bId} position={b.position}>
-                {/* Floor Cells (skipping removed cells) */}
-                {Array.from({ length: Math.round(b.size[0] || 1) }).map(
-                  (_, c) =>
-                    Array.from({ length: Math.round(b.size[1] || 1) }).map(
-                      (_, r) => {
-                        const cellId = `${c}_${r}`;
-                        if (b.removed_cells?.includes(cellId)) return null;
-                        const cx = c - b.size[0] / 2 + 0.5;
-                        const cz = r - b.size[1] / 2 + 0.5;
-                        return (
-                          <mesh
-                            key={cellId}
-                            position={[cx, -0.5, cz]}
-                            receiveShadow
-                          >
-                            <boxGeometry args={[1, 1, 1]} />
-                            <meshStandardMaterial color={b.color} />
-                          </mesh>
-                        );
-                      },
-                    ),
-                )}
-                <Text
-                  position={[0, 0.02, b.size[1] / 2 + 0.5]}
-                  rotation={[-Math.PI / 2, 0, 0]}
-                  fontSize={0.7}
-                  color={b.color}
-                  fontWeight="bold"
-                  textAlign="center"
-                >
-                  {b.name.replace(" ", "\n")}
-                </Text>
-              </group>
-            ))}
-
-            {/* Room Blocks */}
-            {floorNodes.map((node: any, index: number) => {
-              const size = node.size || [1, 1, 1];
-              const isDestination =
-                node.label?.toLowerCase() === destination.toLowerCase();
-              const theme = getRoomTheme(node.label);
-              const boxColor = isDestination ? "#22c55e" : theme.color;
-
-              // Elevate ALL labels and alternate heights to prevent crossing
-              const staggerHeight = 1.0 + (index % 2) * 0.8;
-              const textY = size[1] / 2 + staggerHeight;
+            {/* Render all visible floors as a 3D Stack */}
+            {visibleFloors.map((floor, floorIndex) => {
+              const yOffset = isStandalone ? 0 : floorIndex * 15;
+              const bEntries = Object.entries(buildings || {}).filter(
+                ([_, b]: [string, any]) => !b.floor || b.floor === floor
+              ) as [string, any][];
+              const fNodes = nodes.filter((n) => n.floor === floor && n.type !== "waypoint");
 
               return (
-                <group
-                  key={node.id}
-                  position={[node.world[0], size[1] / 2, node.world[2]]}
-                >
-                  <Box args={size} castShadow>
-                    <meshStandardMaterial
-                      color={boxColor}
-                      emissive={isDestination ? "#22c55e" : "#000000"}
-                      emissiveIntensity={isDestination ? 0.3 : 0}
-                    />
-                  </Box>
+                <group key={`floor-stack-${floor}`} position={[0, yOffset, 0]}>
+                  {/* Building Grids */}
+                  {bEntries.map(([bId, b]) => (
+                    <group key={bId} position={b.position}>
+                      {Array.from({ length: Math.round(b.size[0] || 1) }).map((_, c) =>
+                        Array.from({ length: Math.round(b.size[1] || 1) }).map((_, r) => {
+                          const cellId = `${c}_${r}`;
+                          if (b.removed_cells?.includes(cellId)) return null;
+                          const cx = c - b.size[0] / 2 + 0.5;
+                          const cz = r - b.size[1] / 2 + 0.5;
+                          return (
+                            <mesh key={cellId} position={[cx, -0.5, cz]} receiveShadow>
+                              <boxGeometry args={[1, 1, 1]} />
+                              <meshStandardMaterial color={b.color} />
+                            </mesh>
+                          );
+                        })
+                      )}
+                      <Text
+                        position={[0, 0.02, b.size[1] / 2 + 0.5]}
+                        rotation={[-Math.PI / 2, 0, 0]}
+                        fontSize={0.7}
+                        color={b.color}
+                        fontWeight="bold"
+                        textAlign="center"
+                      >
+                        {b.name.replace(" ", "\n")}
+                      </Text>
+                    </group>
+                  ))}
 
-                  {/* Text label painted directly on the top of the item */}
-                  <Text
-                    position={[0, size[1] / 2 + 0.05, 0]}
-                    rotation={[-Math.PI / 2, 0, 0]}
-                    fontSize={0.35}
-                    color="#ffffff"
-                    anchorX="center"
-                    anchorY="middle"
-                    fontWeight="bold"
-                    textAlign="center"
-                    lineHeight={1.1}
-                  >
-                    {`${theme.icon}\n${node.label.replace(" ", "\n")}`}
-                  </Text>
+                  {/* Room Blocks */}
+                  {fNodes.map((node: any, index: number) => {
+                    const size = node.size || [1, 1, 1];
+                    const isDestination = node.label?.toLowerCase() === destination.toLowerCase();
+                    const theme = getRoomTheme(node.label);
+                    const boxColor = isDestination ? "#22c55e" : theme.color;
+
+                    return (
+                      <group
+                        key={node.id}
+                        position={[node.world[0], size[1] / 2, node.world[2]]}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onNodeClick) onNodeClick(node);
+                        }}
+                        onPointerOver={(e) => {
+                          e.stopPropagation();
+                          if (onNodeClick) document.body.style.cursor = 'pointer';
+                        }}
+                        onPointerOut={(e) => {
+                          if (onNodeClick) document.body.style.cursor = 'auto';
+                        }}
+                      >
+                        <Box args={size} castShadow>
+                          <meshStandardMaterial
+                            color={boxColor}
+                            emissive={isDestination ? "#22c55e" : "#000000"}
+                            emissiveIntensity={isDestination ? 0.3 : 0}
+                          />
+                        </Box>
+
+                        <group position={[0, size[1] / 2 + 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                          {theme.icon.startsWith("/") ? (
+                            <ImageIcon
+                              url={theme.icon}
+                              size={size}
+                              position={[0, theme.showName ? 0.25 : 0, 0]}
+                              scale={theme.showName ? 0.8 : 1}
+                            />
+                          ) : (
+                            <Text
+                              position={[0, theme.showName ? 0.3 : 0, 0]}
+                              fontSize={theme.showName ? 0.5 : 0.7}
+                              anchorX="center"
+                              anchorY="middle"
+                            >
+                              {theme.icon}
+                            </Text>
+                          )}
+                          {theme.showName && (
+                            <Text
+                              position={[0, -0.35, 0]}
+                              fontSize={0.375}
+                              color="#ffffff"
+                              anchorX="center"
+                              anchorY="middle"
+                              fontWeight="bold"
+                              textAlign="center"
+                              lineHeight={1.1}
+                            >
+                              {node.label.replace(" ", "\n")}
+                            </Text>
+                          )}
+                        </group>
+                      </group>
+                    );
+                  })}
                 </group>
               );
             })}
@@ -433,11 +584,11 @@ export default function NavigationMap({
             {pathPoints.length >= 2 && <GlowingPath points={pathPoints} />}
 
             {/* All Edges and Waypoints are hidden as requested */}
-            {destNode && destNode.floor === currentFloor && (
+            {destNode && ascendingFloors.indexOf(destNode.floor) <= currentFloorIndex && (
               <DestinationMarker
                 position={[
                   destNode.world[0],
-                  destNode.world[1],
+                  (destNode.world[1] || 0) + (isStandalone ? 0 : ascendingFloors.indexOf(destNode.floor) * 15),
                   destNode.world[2],
                 ]}
                 label={destination}
