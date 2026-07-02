@@ -134,6 +134,8 @@ interface NavigationMapProps {
   destination: string; // Destination label
   onClose?: () => void; // Close callback
   isStandalone?: boolean; // Standalone mode for 3d-map page
+  isManualExpanded?: boolean; // Manual expansion mode
+  onNodeClick?: (label: string) => void; // Callback when a node is clicked
 }
 
 const getRoomTheme = (label: string = "") => {
@@ -168,6 +170,8 @@ export default function NavigationMap({
   destination = "Destination",
   onClose,
   isStandalone = false,
+  isManualExpanded = false,
+  onNodeClick,
 }: Partial<NavigationMapProps>) {
   const [visible, setVisible] = useState(false);
   const [currentFloor, setCurrentFloor] = useState<string>("");
@@ -200,7 +204,7 @@ export default function NavigationMap({
     // Animate in
     setTimeout(() => setVisible(true), 50);
 
-    if (!isStandalone) {
+    if (!isStandalone && !isManualExpanded) {
       // Auto-dismiss after 20 seconds
       const timer = setTimeout(() => {
         setVisible(false);
@@ -209,7 +213,7 @@ export default function NavigationMap({
 
       return () => clearTimeout(timer);
     }
-  }, [onClose, isStandalone]);
+  }, [onClose, isStandalone, isManualExpanded]);
 
   const handleClose = () => {
     setVisible(false);
@@ -252,14 +256,14 @@ export default function NavigationMap({
   return (
     <div
       className={
-        isStandalone
-          ? `w-full h-full bg-[#0F172A] flex flex-col items-center justify-center transition-all duration-500 ${visible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`
+        isStandalone || isManualExpanded
+          ? `w-full h-full ${isStandalone ? 'bg-[#0F172A]' : 'bg-black/80 backdrop-blur-md rounded-3xl'} flex flex-col items-center justify-center transition-all duration-500 overflow-hidden shadow-2xl ${visible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`
           : `absolute inset-0 z-50 bg-black/80 backdrop-blur-md rounded-3xl overflow-hidden shadow-2xl flex flex-col items-center justify-center transition-all duration-500 ${visible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`
       }
-      onClick={isStandalone ? undefined : handleClose}
+      onClick={isStandalone || isManualExpanded ? undefined : handleClose}
     >
       {/* Header */}
-      {!isStandalone && (
+      {!isStandalone && !isManualExpanded && (
         <div
           className="absolute top-6 left-0 right-0 flex justify-center z-10"
           onClick={(e) => e.stopPropagation()}
@@ -280,7 +284,7 @@ export default function NavigationMap({
       )}
 
       {/* Floor Switcher */}
-      {!isStandalone && (
+      {(!isStandalone || isManualExpanded) && (
         <div className="absolute left-6 top-[75%] -translate-y-1/2 flex flex-col gap-2 z-10 scale-90 origin-left">
           <div className="text-slate-300 text-xs font-bold text-center uppercase tracking-widest mb-1">
             Navigation Route
@@ -402,6 +406,24 @@ export default function NavigationMap({
                 <group
                   key={node.id}
                   position={[node.world[0], size[1] / 2, node.world[2]]}
+                  onClick={(e) => {
+                    if (onNodeClick) {
+                      e.stopPropagation();
+                      onNodeClick(node.label);
+                    }
+                  }}
+                  onPointerOver={(e) => {
+                    if (onNodeClick) {
+                      e.stopPropagation();
+                      document.body.style.cursor = "pointer";
+                    }
+                  }}
+                  onPointerOut={(e) => {
+                    if (onNodeClick) {
+                      e.stopPropagation();
+                      document.body.style.cursor = "auto";
+                    }
+                  }}
                 >
                   <Box args={size} castShadow>
                     <meshStandardMaterial
@@ -455,7 +477,7 @@ export default function NavigationMap({
       </div>
 
       {/* Bottom hint */}
-      {!isStandalone && (
+      {!isStandalone && !isManualExpanded && (
         <div className="absolute bottom-6 left-0 right-0 flex justify-center z-10">
           <p className="text-gray-400 text-sm">
             Tap anywhere to close • Auto-closes in 20 seconds

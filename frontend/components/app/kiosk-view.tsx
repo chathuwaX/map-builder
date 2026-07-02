@@ -44,6 +44,7 @@ export function KioskView() {
 
   // Navigation state
   const [navData, setNavData] = useState<any | null>(null);
+  const [isMapExpanded, setIsMapExpanded] = useState(false);
   const isNavigating = navData !== null;
   const pendingEventRef = useRef<any | null>(null);
   const pendingNavigateRef = useRef<string | null>(null);
@@ -233,6 +234,7 @@ export function KioskView() {
 
   const handleNavigateToLocation = async (destination: string) => {
     setLocationsModalCategory(null);
+    setIsMapExpanded(true);
     if (!isConnected) {
       pendingNavigateRef.current = destination;
       await start();
@@ -649,12 +651,13 @@ export function KioskView() {
 
                 {/* Small Map Visual */}
                 <AnimatePresence>
-                  {!isNavigating && (
+                  {!isNavigating && !isMapExpanded && (
                     <motion.div
                       initial={{ opacity: 0, height: 0, marginBottom: 0 }}
                       animate={{ opacity: 1, height: 220, marginBottom: 8 }}
                       exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                      className="w-full rounded-2xl overflow-hidden relative bg-black/10 mt-2 shadow-inner border border-outline/20 flex-shrink-0"
+                      className="w-full rounded-2xl overflow-hidden relative bg-black/10 mt-2 shadow-inner border border-outline/20 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-primary transition-all group"
+                      onClick={() => setIsMapExpanded(true)}
                     >
                       {homeMapData ? (
                         <div className="absolute inset-0">
@@ -663,7 +666,13 @@ export function KioskView() {
                             buildings={homeMapData.buildings}
                             edges={homeMapData.edges}
                             isStandalone={true}
+                            onNodeClick={handleNavigateToLocation}
                           />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center pointer-events-none">
+                            <span className="material-symbols-outlined text-white opacity-0 group-hover:opacity-100 transition-opacity text-4xl drop-shadow-md">
+                              open_in_full
+                            </span>
+                          </div>
                         </div>
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -908,15 +917,28 @@ export function KioskView() {
 
             {/* Navigation Map Overlay (Scoped to Left and Middle Columns) */}
             <AnimatePresence>
-              {navData && (
+              {(navData || isMapExpanded) && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ duration: 0.4, ease: "easeOut" }}
-                  className="absolute top-0 bottom-0 left-0 z-[60]"
+                  className="absolute top-0 bottom-0 left-0 z-[60] flex"
                   style={{ right: "calc(26% + 1.5rem)" }}
                 >
+                  {/* Back Button Overlay */}
+                  <div className="absolute left-6 top-6 z-[70] pointer-events-auto">
+                    <button 
+                      onClick={() => {
+                        setNavData(null);
+                        setIsMapExpanded(false);
+                      }} 
+                      className="bg-surface-container/90 backdrop-blur-md text-on-surface rounded-full h-[54px] px-6 text-[16px] flex items-center justify-center gap-2 shadow-lg border border-outline/20 font-bold hover:bg-surface-variant transition-colors active:scale-95"
+                    >
+                      <span className="material-symbols-outlined text-2xl">arrow_back</span> Back
+                    </button>
+                  </div>
+
                   <Suspense
                     fallback={
                       <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 rounded-3xl">
@@ -927,13 +949,15 @@ export function KioskView() {
                     }
                   >
                     <NavigationMap
-                      path={navData.path}
-                      path_ids={navData.path_ids}
-                      nodes={navData.nodes}
-                      buildings={navData.buildings}
-                      destination={navData.destination}
-                      directions={navData.directions}
-                      onClose={() => setNavData(null)}
+                      path={navData?.path}
+                      path_ids={navData?.path_ids}
+                      nodes={navData?.nodes || homeMapData?.nodes}
+                      buildings={navData?.buildings || homeMapData?.buildings}
+                      destination={navData?.destination}
+                      directions={navData?.directions}
+                      onClose={() => { setNavData(null); setIsMapExpanded(false); }}
+                      isManualExpanded={true}
+                      onNodeClick={handleNavigateToLocation}
                     />
                   </Suspense>
                 </motion.div>
@@ -943,10 +967,10 @@ export function KioskView() {
             {/* Right Column: Faculty News / Focused Poster — expands when poster is focused */}
             <div
               className="h-full min-h-0 flex-shrink-0 overflow-hidden transition-all duration-500 ease-in-out"
-              style={{ width: focusedEvent || isNavigating ? "26%" : "25%" }}
+              style={{ width: focusedEvent || isNavigating || isMapExpanded ? "26%" : "25%" }}
             >
               <AnimatePresence mode="wait">
-                {isNavigating ? (
+                {isNavigating || isMapExpanded ? (
                   <motion.div
                     key="navigation-chat"
                     initial={{ opacity: 0, x: 20 }}
@@ -974,7 +998,7 @@ export function KioskView() {
                         isLoading={false}
                         className="space-y-4 pb-4"
                       />
-                      {navData.directions && (
+                      {navData?.directions && (
                         <div className="mt-2 mb-4 p-4 bg-primary/10 rounded-2xl border border-primary/20 animate-in fade-in slide-in-from-bottom-2 duration-500">
                           <h4 className="font-bold text-primary mb-1 flex items-center gap-1 text-sm">
                             <span className="material-symbols-outlined text-[16px]">
@@ -988,6 +1012,36 @@ export function KioskView() {
                         </div>
                       )}
                     </ScrollArea>
+
+                    {/* Action Area for Navigation Agent */}
+                    <div className="flex-shrink-0 p-4 border-t border-outline/10 bg-surface-container-low flex gap-2 items-center">
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (!chatInput.trim()) return;
+                          if (!isConnected) return;
+                          send(chatInput);
+                          setChatInput("");
+                        }}
+                        className="flex-1 flex items-center"
+                      >
+                        <input
+                          type="text"
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          placeholder={isConnected ? "Where do you want to go?" : "Click mic to connect..."}
+                          className="w-full bg-background/80 border border-outline/30 rounded-full px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </form>
+                      <button
+                        onClick={() => (isConnected ? end() : start())}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 text-white shadow-md transition-all active:scale-95 ${isConnected ? "bg-error shadow-error/30 animate-pulse" : "bg-primary shadow-primary/30"}`}
+                      >
+                        <span className="material-symbols-outlined text-[24px]">
+                          {isConnected ? "close" : "mic"}
+                        </span>
+                      </button>
+                    </div>
                   </motion.div>
                 ) : (
                   <motion.div
