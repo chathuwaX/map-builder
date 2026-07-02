@@ -6,8 +6,7 @@ import { cn } from '@/lib/utils';
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { DataPacket_Kind, RemoteParticipant } from 'livekit-client';
 
-// Lazy load the 2D navigation map overlay
-const NavigationMap = lazy(() => import('@/components/app/isometric-map'));
+// Lazy load removed since NavigationMap is no longer needed here
 
 const MotionOverlay = motion.create('div');
 
@@ -18,22 +17,12 @@ interface ImageData {
     caption: string;
 }
 
-interface NavigationData {
-    destination: string;
-    floor: string;
-    path: number[][];
-    path_ids?: string[];
-    directions?: string;
-    nodes: any[];
-    buildings: any;
-}
 
 export function ImageDisplay() {
     const session = useSessionContext();
     const room = session?.room;
     const [imageData, setImageData] = useState<ImageData | null>(null);
     const [showImage, setShowImage] = useState(false);
-    const [navData, setNavData] = useState<NavigationData | null>(null);
 
     useEffect(() => {
         if (!room) {
@@ -61,7 +50,6 @@ export function ImageDisplay() {
                 if (message.type === 'image') {
                     console.log('📸 Received image URL:', message.url);
                     setShowImage(false);
-                    setNavData(null);
                     setTimeout(() => {
                         setImageData(message);
                         setShowImage(true);
@@ -69,18 +57,6 @@ export function ImageDisplay() {
                             setShowImage(false);
                         }, 10000);
                     }, 100);
-                } else if (message.type === 'navigation') {
-                    console.log('🗺️ Received navigation data:', message.destination);
-                    setShowImage(false);
-                    setNavData({
-                        destination: message.destination,
-                        floor: message.floor,
-                        path: message.path,
-                        path_ids: message.path_ids,
-                        directions: message.directions,
-                        nodes: message.nodes,
-                        buildings: message.buildings,
-                    });
                 }
             } catch (error) {
                 console.error('❌ Error parsing data message:', error);
@@ -108,24 +84,6 @@ export function ImageDisplay() {
 
     return (
         <>
-            {/* Navigation Map Overlay */}
-            {navData && (
-                <Suspense fallback={
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80">
-                        <div className="text-white text-xl animate-pulse">Loading Map...</div>
-                    </div>
-                }>
-                    <NavigationMap
-                        path={navData.path}
-                        path_ids={navData.path_ids}
-                        nodes={navData.nodes}
-                        buildings={navData.buildings}
-                        destination={navData.destination}
-                        directions={navData.directions}
-                        onClose={() => setNavData(null)}
-                    />
-                </Suspense>
-            )}
 
             {/* Image Overlay */}
             <AnimatePresence>

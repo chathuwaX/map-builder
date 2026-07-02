@@ -136,6 +136,7 @@ interface NavigationMapProps {
   isStandalone?: boolean; // Standalone mode for 3d-map page
   isManualExpanded?: boolean; // Manual expansion mode
   onNodeClick?: (label: string) => void; // Callback when a node is clicked
+  hideFloorSwitcher?: boolean; // Hide floor switcher UI
 }
 
 const getRoomTheme = (label: string = "") => {
@@ -172,18 +173,24 @@ export default function NavigationMap({
   isStandalone = false,
   isManualExpanded = false,
   onNodeClick,
+  hideFloorSwitcher = false,
 }: Partial<NavigationMapProps>) {
   const [visible, setVisible] = useState(false);
   const [currentFloor, setCurrentFloor] = useState<string>("");
+  const lastScrollRef = useRef<number>(0);
 
   const availableFloors = useMemo(() => {
     return Array.from(
       new Set(nodes.map((n) => n.floor).filter(Boolean)),
-    ).sort();
+    ).sort((a, b) => {
+      const numA = parseInt((a as string).replace(/\D/g, "")) || 0;
+      const numB = parseInt((b as string).replace(/\D/g, "")) || 0;
+      return numB - numA;
+    });
   }, [nodes]);
 
   const floorSequence = useMemo(() => {
-    if (!path_ids || path_ids.length === 0) return availableFloors;
+    if (!path_ids || path_ids.length === 0) return [];
     const seq: string[] = [];
     path_ids.forEach((id) => {
       const node = nodes.find((n) => n.id === id);
@@ -191,14 +198,19 @@ export default function NavigationMap({
         seq.push(node.floor);
       }
     });
-    return seq.length > 0 ? seq : availableFloors;
-  }, [path_ids, nodes, availableFloors]);
+    return seq;
+  }, [path_ids, nodes]);
 
   useEffect(() => {
-    if (floorSequence.length > 0 && !currentFloor) {
-      setCurrentFloor(floorSequence[0] as string);
+    if (!currentFloor) {
+      if (floorSequence.length > 0) {
+        setCurrentFloor(floorSequence[0] as string);
+      } else if (availableFloors.length > 0) {
+        // default to lowest floor (Floor 1)
+        setCurrentFloor(availableFloors[availableFloors.length - 1] as string);
+      }
     }
-  }, [floorSequence, currentFloor]);
+  }, [floorSequence, currentFloor, availableFloors]);
 
   useEffect(() => {
     // Animate in
@@ -284,20 +296,26 @@ export default function NavigationMap({
       )}
 
       {/* Floor Switcher */}
-      {(!isStandalone || isManualExpanded) && (
-        <div className="absolute left-6 top-[75%] -translate-y-1/2 flex flex-col gap-2 z-10 scale-90 origin-left">
-          <div className="text-slate-300 text-xs font-bold text-center uppercase tracking-widest mb-1">
-            Navigation Route
+      {!hideFloorSwitcher && (
+        <div 
+          className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10 max-h-[80vh] overflow-y-auto pb-4 pr-4 pointer-events-auto"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-slate-300 text-sm font-bold text-center uppercase tracking-widest mb-2 sticky top-0 bg-black/60 backdrop-blur-md py-2 px-4 rounded-full z-20 shadow-lg">
+            All Floors
           </div>
-          {floorSequence.map((f, idx) => {
+          {availableFloors.map((f, idx) => {
             let badge = "";
-            if (idx === 0 && floorSequence.length > 1) badge = "🏁 Start";
-            else if (
-              idx === floorSequence.length - 1 &&
-              floorSequence.length > 1
-            )
-              badge = "📍 Dest";
-            else if (floorSequence.length > 1) badge = "⬇️ Next";
+            if (floorSequence.length > 0) {
+              if (floorSequence.length === 1 && f === floorSequence[0]) {
+                badge = "🏁 Start & 📍 Dest";
+              } else {
+                if (f === floorSequence[0]) badge = "🏁 Start";
+                else if (f === floorSequence[floorSequence.length - 1]) badge = "📍 Dest";
+                else if (floorSequence.includes(f as string)) badge = "🛣️ Route";
+              }
+            }
 
             return (
               <button
@@ -321,9 +339,9 @@ export default function NavigationMap({
                   </span>
                 )}
 
-                {/* Connector line for sequence visual */}
-                {idx < floorSequence.length - 1 && (
-                  <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-0.5 h-3 bg-slate-600" />
+                {/* Connector line between all floors */}
+                {idx < availableFloors.length - 1 && (
+                  <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-0.5 h-3 bg-slate-600/50" />
                 )}
               </button>
             );
@@ -332,7 +350,33 @@ export default function NavigationMap({
       )}
 
       {/* 3D Canvas */}
-      <div className="w-full h-full" onClick={(e) => e.stopPropagation()}>
+      <div 
+        className="w-full h-full" 
+        onClick={(e) => e.stopPropagation()}
+        onWheel={(e) => {
+          e.stopPropagation();
+          const now = Date.now();
+          if (now - lastScrollRef.current < 400) return; // 400ms cooldown
+
+          if (!availableFloors.length) return;
+          const currentIndex = availableFloors.indexOf(currentFloor);
+          if (currentIndex === -1) return;
+
+          if (e.deltaY < 0) {
+            // Scroll up -> Go to higher floor (lower index since it's sorted descending)
+            if (currentIndex > 0) {
+              setCurrentFloor(availableFloors[currentIndex - 1] as string);
+              lastScrollRef.current = now;
+            }
+          } else if (e.deltaY > 0) {
+            // Scroll down -> Go to lower floor (higher index)
+            if (currentIndex < availableFloors.length - 1) {
+              setCurrentFloor(availableFloors[currentIndex + 1] as string);
+              lastScrollRef.current = now;
+            }
+          }
+        }}
+      >
         <Canvas
           shadows
           orthographic
@@ -467,7 +511,7 @@ export default function NavigationMap({
             )}
 
             <OrbitControls
-              enableZoom={true}
+              enableZoom={false}
               enablePan={true}
               maxPolarAngle={Math.PI / 2 - 0.1}
               target={isStandalone ? [4, 0, -4] : [4, 2, -2]}

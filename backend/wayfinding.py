@@ -130,7 +130,52 @@ class Wayfinder:
                     self.graph.setdefault(best_wp, []).append((nid,     dist))
                     healed += 1
 
-            # Pass 2 (component merge) has been removed to strictly respect user-drawn paths.
+            # Pass 2 (component merge): Connect disconnected subgraphs
+            components = []
+            visited = set()
+            for nid in ids:
+                if nid in visited: continue
+                comp = set()
+                q = [nid]
+                while q:
+                    curr = q.pop(0)
+                    if curr in comp: continue
+                    comp.add(curr)
+                    visited.add(curr)
+                    for neighbor, _ in self.graph.get(curr, []):
+                        if neighbor in id_set and neighbor not in comp:
+                            q.append(neighbor)
+                components.append(comp)
+            
+            if len(components) > 1:
+                components.sort(key=len, reverse=True)
+                main_comp = components[0]
+                for comp in components[1:]:
+                    best_d = float('inf')
+                    best_pair = None
+                    for n1 in comp:
+                        if self.nodes[n1].get("type") != "waypoint": continue
+                        for n2 in main_comp:
+                            if self.nodes[n2].get("type") != "waypoint": continue
+                            d = self._dist(self.nodes[n1]["world"], self.nodes[n2]["world"])
+                            if d < best_d:
+                                best_d = d
+                                best_pair = (n1, n2)
+                    
+                    if not best_pair:
+                        for n1 in comp:
+                            for n2 in main_comp:
+                                d = self._dist(self.nodes[n1]["world"], self.nodes[n2]["world"])
+                                if d < best_d:
+                                    best_d = d
+                                    best_pair = (n1, n2)
+                                    
+                    if best_pair:
+                        u, v = best_pair
+                        self.graph.setdefault(u, []).append((v, best_d))
+                        self.graph.setdefault(v, []).append((u, best_d))
+                        main_comp.update(comp)
+                        healed += 1
 
 
     # ── Utilities ──────────────────────────────────────────────────────────

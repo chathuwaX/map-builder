@@ -4,7 +4,7 @@ for f in glob.glob('data/map_graph_floor_*.json'):
     with open(f, 'r', encoding='utf-8') as file:
         data = json.load(file)
     
-    modified = false
+    modified = False
     for n in data.get('nodes', []):
         if n.get('label', '').lower() == 'staircase':
             if n.get('building') == 'building_1':

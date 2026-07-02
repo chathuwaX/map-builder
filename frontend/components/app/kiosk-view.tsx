@@ -666,9 +666,10 @@ export function KioskView() {
                             buildings={homeMapData.buildings}
                             edges={homeMapData.edges}
                             isStandalone={true}
+                            hideFloorSwitcher={true}
                             onNodeClick={handleNavigateToLocation}
                           />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center pointer-events-none">
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center cursor-pointer">
                             <span className="material-symbols-outlined text-white opacity-0 group-hover:opacity-100 transition-opacity text-4xl drop-shadow-md">
                               open_in_full
                             </span>
